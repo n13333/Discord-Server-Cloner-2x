@@ -24,7 +24,7 @@ import type {
     ThreadChannel
 } from 'discord.js-selfbot-v13';
 import nodeFetch from 'node-fetch';
-import { configOptions2 } from '../utils/func'
+import { configOptions2, t } from '../utils/func'
 const MaxBitratePerTier: Record<PremiumTier, number> = {
     NONE: 64000,
     TIER_1: 128000,
@@ -37,39 +37,78 @@ import gradient from 'gradient-string';
  */
 export function fetchChannelPermissions(channel: TextChannel | VoiceChannel | CategoryChannel | NewsChannel) {
     const permissions: ChannelPermissionsData[] = [];
-    channel.permissionOverwrites.cache
-        .filter((p) => p.type === 'role')
-        .forEach((perm) => {
-            // For each overwrites permission
-            const role = channel.guild.roles.cache.get(perm.id);
-            if (role) {
-                permissions.push({
-                    roleName: role.name,
-                    allow: perm.allow.bitfield.toString(),
-                    deny: perm.deny.bitfield.toString()
-                });
-            }
-        });
+
+    try {
+        /* Debug: Fetching channel permissions */
+        if (configOptions2.Debug) {
+            console.log('[Debug] Fetching channel permissions...');
+        }
+
+        channel.permissionOverwrites.cache
+            .filter((p) => p.type === 'role')
+            .forEach((perm) => {
+                const role = channel.guild.roles.cache.get(perm.id);
+                if (role) {
+                    permissions.push({
+                        roleName: role.name,
+                        allow: perm.allow.bitfield.toString(),
+                        deny: perm.deny.bitfield.toString()
+                    });
+
+                    /* Debug: Permission fetched successfully for role */
+                    if (configOptions2.Debug) {
+                        console.log(`[Debug] Permission fetched successfully for role ${role.name}:`, permissions[permissions.length - 1]);
+                    }
+                }
+            });
+
+        /* Debug: Channel permissions fetched successfully */
+        if (configOptions2.Debug) {
+            console.log('[Debug] Channel permissions fetched successfully:', permissions);
+        }
+    } catch (error) {
+        console.error(`Error fetching channel permissions for ${channel.name}:`, error);
+    }
+
     return permissions;
 }
+
 
 /**
  * Fetches the voice channel data that is necessary for the backup
  */
 export async function fetchVoiceChannelData(channel: VoiceChannel) {
     return new Promise<VoiceChannelData>(async (resolve) => {
-        const channelData: VoiceChannelData = {
-            type: 'GUILD_VOICE',
-            name: channel.name,
-            bitrate: channel.bitrate,
-            userLimit: channel.userLimit,
-            parent: channel.parent ? channel.parent.name : null,
-            permissions: fetchChannelPermissions(channel)
-        };
-        /* Return channel data */
-        resolve(channelData);
+        let channelData: VoiceChannelData; 
+
+        try {
+            /* Debug: Fetching voice channel data */
+            if (configOptions2.Debug) {
+                console.log('[Debug] Fetching voice channel data...');
+            }
+
+            channelData = {
+                type: 'GUILD_VOICE',
+                name: channel.name,
+                bitrate: channel.bitrate,
+                userLimit: channel.userLimit,
+                parent: channel.parent ? channel.parent.name : null,
+                permissions: fetchChannelPermissions(channel)
+            };
+
+            /* Debug: Voice channel data fetched successfully */
+            if (configOptions2.Debug) {
+                console.log('[Debug] Voice channel data fetched successfully:', channelData);
+            }
+
+            resolve(channelData);
+        } catch (error) {
+            console.error(`Error fetching voice channel data for ${channel.name}:`, error);
+            resolve(channelData);
+        }
     });
 }
+
 
 export async function fetchChannelMessages (channel: TextChannel | NewsChannel | ThreadChannel, options: CreateOptions): Promise<MessageData[]> {
     let messages: MessageData[] = [];
@@ -225,7 +264,7 @@ export async function loadChannel(
 ) {
     return new Promise(async (resolve) => {
         if (channelData.name.startsWith("ticket-") && configOptions2.ignoreTickets) {
-            console.log(`O Canal ${channelData.name} é possivelmente um ticket e será ignorado`);
+            console.log(channelData.name + t('ignoreticketmsg'));
             return null; 
         }
         const loadMessages = (channel: TextChannel | ThreadChannel, messages: MessageData[]): Promise<void> => {
@@ -316,7 +355,7 @@ export async function loadChannel(
                     await loadMessages(channel as TextChannel, (channelData as TextChannelData).messages).catch(() => {});
                 }
                 
-                console.log(gradient(['#43a1ff', '#8a3ffc', '#3c0080'])(`» Canal de texto criado: ${channelData.name}`));
+                console.log(gradient(['#43a1ff', '#8a3ffc', '#3c0080'])(t('textchannelcreate') + channelData.name));
                 return channel;
             } else {
                 resolve(channel);
